@@ -1,0 +1,11 @@
+node_modules
+.DS_Store
+
+# Generated at runtime — converted official (licensed) content. Never commit.
+handoff/
+packs/
+
+# Working artifacts
+.superpowers/
+.playwright-cli/
+docs/

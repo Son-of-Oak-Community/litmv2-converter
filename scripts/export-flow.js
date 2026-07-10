@@ -1,0 +1,92 @@
+// scripts/export-flow.js
+import { assembleHandoff, payloadCounts } from "./assemble-handoff.js";
+import { normalizeKitName } from "./core/data/themekit-index.js";
+import { deterministicId } from "./core/util.js";
+import { ensureHandoffDir, readHandoffJSON, writeHandoffJSON, writeHandoffThumb } from "./handoff-io.js";
+import { MODULE_ID, ROUTES, SOURCE_MODULES } from "./registry.js";
+
+const FELLOWSHIP_KIT_NAMES = [
+	"Fellowship of the Amulet", "Fortune Hunters", "Itinerant Sellswords",
+	"Powerful Household", "Protectors Against the Dark", "Tavern Buddies",
+];
+
+/**
+ * kitName(normalized) → destination theme UUID, across all installed source modules,
+ * plus the 6 synthesized Fellowship kits (core-book themekits pack). Cross-source
+ * because a trope on one source can reference a kit shipped by another (e.g. a HoR
+ * trope naming a Core Book kit).
+ * @returns {Promise<Map<string, string>>}
+ */
+async function buildKitUuidMap() {
+	const map = new Map();
+	for (const mod of SOURCE_MODULES) {
+		const themePack = ROUTES[mod.id]?.itemPacks?.theme;
+		const src = game.packs.get(mod.packId);
+		if (!themePack || !src) continue;
+		const [adventure] = await src.getDocuments();
+		for (const it of adventure.toObject().items ?? []) {
+			if (it.type !== "themekit") continue;
+			map.set(normalizeKitName(it.name), `Compendium.${MODULE_ID}.${themePack}.Item.${it._id}`);
+		}
+		// Synthesized Fellowship kits live in the core-book themekits pack.
+		if (mod.id === "legend-in-the-mist-core-book") {
+			for (const name of FELLOWSHIP_KIT_NAMES)
+				map.set(normalizeKitName(name), `Compendium.${MODULE_ID}.${themePack}.Item.${deterministicId(`themekit:fellowship:${name}`)}`);
+		}
+	}
+	return map;
+}
+
+/**
+ * Bake a thumbnail into each adventure scene that lacks one. The source ships
+ * scenes with `thumb: null`, and core's auto-thumbnail (Scene#_preCreate) only
+ * fires when `thumb` is absent from the creation data — adventure imports
+ * always carry the field, so without baking here the imported scenes render
+ * blank in the scene directory. Thumbs are stored as files under the module's
+ * handoff dir and referenced by path (see writeHandoffThumb for why not
+ * base64). Failures (e.g. the noCanvas setting) skip the scene rather than
+ * abort the export.
+ * @param {object[]} scenes - converted scene data, mutated in place
+ */
+async function bakeSceneThumbnails(scenes) {
+	for (const data of scenes) {
+		if (data.thumb) continue;
+		try {
+			const scene = new Scene(foundry.utils.deepClone(data));
+			if (!scene.initialLevel?.background?.src) continue;
+			const { thumb } = await scene.createThumbnail();
+			data.thumb = await writeHandoffThumb(`${data._id}-thumb.webp`, thumb);
+		} catch (e) {
+			console.warn(`${MODULE_ID} | Could not generate a thumbnail for scene "${data.name}"`, e);
+		}
+	}
+}
+
+/**
+ * Convert one installed source module and write its handoff JSON + manifest entry.
+ * @param {string} sourceModuleId
+ */
+export async function exportSource(sourceModuleId) {
+	const mod = SOURCE_MODULES.find(m => m.id === sourceModuleId);
+	if (!mod) throw new Error(`Unknown source module: ${sourceModuleId}`);
+	const pack = game.packs.get(mod.packId);
+	if (!pack) throw new Error(`Source pack not found (are you in a mist-engine world with the module enabled?): ${mod.packId}`);
+
+	await ensureHandoffDir();
+	const [adventure] = await pack.getDocuments();
+	const kitUuidByName = await buildKitUuidMap();
+	const payload = assembleHandoff(mod.id, adventure.toObject(), { kitUuidByName });
+	if (payload.adventure) await bakeSceneThumbnails(payload.adventure.scenes);
+	const counts = payloadCounts(payload);
+	const file = `${mod.id}.json`;
+	await writeHandoffJSON(file, payload);
+
+	const manifest = (await readHandoffJSON("manifest.json")) ?? { sources: [] };
+	// Unconditional: a pre-format-2 manifest on disk must not pin the old version.
+	manifest.version = 2;
+	manifest.sources = manifest.sources.filter(s => s.id !== mod.id);
+	manifest.sources.push({ id: mod.id, label: mod.label, exportedAt: new Date().toISOString(), file, counts });
+	await writeHandoffJSON("manifest.json", manifest);
+
+	return { sourceId: mod.id, counts, file };
+}

@@ -1,0 +1,26 @@
+{
+	"id": "litmv2-converter",
+	"title": "LitM Converter",
+	"description": "Convert your own official Legend in the Mist content from the Official system into litmv2 content.",
+	"version": "1.0",
+	"compatibility": { "minimum": "14", "verified": "14" },
+	"authors": [{ "name": "litmv2" }],
+	"url": "https://github.com/Son-of-Oak-Community/litmv2-converter",
+	"manifest": "https://raw.githubusercontent.com/Son-of-Oak-Community/litmv2-converter/main/module.json",
+	"download": "https://github.com/Son-of-Oak-Community/litmv2-converter/archive/refs/heads/main.zip",
+	"esmodules": ["scripts/main.js"],
+	"flags": { "canUpload": true },
+	"packs": [
+		{ "name": "litm-character-pack", "label": "LitM Character Pack", "path": "packs/litm-character-pack", "type": "Actor", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-core-book-actors", "label": "LitM Core Book — Actors", "path": "packs/litm-core-book-actors", "type": "Actor", "system": "litmv2", "ownership": { "PLAYER": "NONE", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-core-book-journals", "label": "LitM Core Book — Journals", "path": "packs/litm-core-book-journals", "type": "JournalEntry", "system": "litmv2", "ownership": { "PLAYER": "NONE", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-core-book-themebooks", "label": "LitM Core Book — Themebooks", "path": "packs/litm-core-book-themebooks", "type": "Item", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-core-book-themekits", "label": "LitM Core Book — Themekits", "path": "packs/litm-core-book-themekits", "type": "Item", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-core-book-items", "label": "LitM Core Book — Items", "path": "packs/litm-core-book-items", "type": "Item", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-hor-the-dales", "label": "LitM Hearts of Ravendale — The Dale", "path": "packs/litm-hor-the-dales", "type": "Adventure", "system": "litmv2", "ownership": { "PLAYER": "NONE", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-hor-themekits", "label": "LitM Hearts of Ravendale — Themekits", "path": "packs/litm-hor-themekits", "type": "Item", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-hor-items", "label": "LitM Hearts of Ravendale — Items", "path": "packs/litm-hor-items", "type": "Item", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-core-book-tropes", "label": "LitM Core Book — Tropes", "path": "packs/litm-core-book-tropes", "type": "Item", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } },
+		{ "name": "litm-hor-tropes", "label": "LitM Hearts of Ravendale — Tropes", "path": "packs/litm-hor-tropes", "type": "Item", "system": "litmv2", "ownership": { "PLAYER": "OBSERVER", "ASSISTANT": "OWNER" } }
+	]
+}

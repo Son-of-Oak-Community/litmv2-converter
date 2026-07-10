@@ -1,0 +1,14 @@
+{
+	"name": "litmv2-converter",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"audit:themekits": "node scripts/tools/audit-themekit-index.mjs"
+	},
+	"devDependencies": {
+		"classic-level": "^3.0.0",
+		"vitest": "4.1.10"
+	}
+}
