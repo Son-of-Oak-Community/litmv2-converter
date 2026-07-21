@@ -8,7 +8,6 @@ const DOC_CLASS = {
 	Item: () => Item,
 	JournalEntry: () => JournalEntry,
 	Scene: () => Scene,
-	Adventure: () => Adventure,
 	RollTable: () => RollTable,
 };
 
@@ -32,7 +31,7 @@ async function readManifestPayloads() {
 	for (const src of manifest.sources) {
 		const payload = await readHandoffJSON(src.file);
 		if (payload) {
-			if (payload.format !== 2) {
+			if (payload.format !== 3) {
 				throw new Error(`Handoff file ${src.file} was produced by an older converter version. Re-run the export in your mist-engine world (Update Content), then import again.`);
 			}
 			payloads.push(payload);
@@ -80,19 +79,6 @@ async function createGroups(groups, report = () => {}) {
 	return imported;
 }
 
-/** Build and create each payload's Adventure document in its Adventure pack. */
-async function createAdventures(payloads, imported, report = () => {}) {
-	for (const { adventure } of payloads) {
-		if (!adventure) continue;
-		report("Importing adventure…");
-		const { pack: packName, ...data } = adventure;
-		await withUnlockedPack(packName, async (pack) => {
-			await Adventure.createDocuments([data], { pack: pack.collection, keepId: true });
-		});
-		imported.Adventure = (imported.Adventure ?? 0) + 1;
-	}
-}
-
 /**
  * Import every exported source's converted documents into the module's own
  * packs (additive; keepId overwrites documents that already exist).
@@ -101,10 +87,8 @@ async function createAdventures(payloads, imported, report = () => {}) {
 export async function importAll({ onProgress } = {}) {
 	const { payloads } = await readManifestPayloads();
 	const groups = groupByPack(payloads);
-	const adventures = payloads.filter((p) => p.adventure).length;
-	const report = createProgressReporter(Object.keys(groups).length + adventures, onProgress);
+	const report = createProgressReporter(Object.keys(groups).length, onProgress);
 	const imported = await createGroups(groups, report);
-	await createAdventures(payloads, imported, report);
 	return { imported, sources: payloads.map((p) => p.sourceId) };
 }
 
@@ -116,8 +100,7 @@ export async function importAll({ onProgress } = {}) {
 export async function reimportAll({ onProgress } = {}) {
 	const { payloads } = await readManifestPayloads();
 	const groups = groupByPack(payloads);
-	const adventures = payloads.filter((p) => p.adventure).length;
-	const report = createProgressReporter(PACKS.length + Object.keys(groups).length + adventures, onProgress);
+	const report = createProgressReporter(PACKS.length + Object.keys(groups).length, onProgress);
 	// Purge the full destination-pack universe, not just packs present in this
 	// handoff — a pack that dropped to zero across payloads must still be cleared.
 	for (const { name, docClass } of PACKS) {
@@ -130,6 +113,5 @@ export async function reimportAll({ onProgress } = {}) {
 		});
 	}
 	const imported = await createGroups(groups, report);
-	await createAdventures(payloads, imported, report);
 	return { imported, sources: payloads.map((p) => p.sourceId) };
 }

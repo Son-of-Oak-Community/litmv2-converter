@@ -12,9 +12,9 @@ After running the converter, the compendium sidebar gains a **Legend in the Mist
 | --- | --- |
 | Legend In The Mist — Core Book | Actors, Rulebooks (journals), Themebooks, Themekits, Vignettes & Add-ons, Tropes, Oracle Tables, Rotes (as litmv2 actions) |
 | Legend In The Mist — Character Pack | Pre-made character Actors |
-| Legend In The Mist — Hearts of Ravendale | *The Dale* adventure (scenes, journals, NPCs), Themekits, Challenge Add-ons, Tropes |
+| Legend In The Mist — Hearts of Ravendale | Actors, The Dale (journals), Maps & Scenes, Themekits, Challenge Add-ons, Tropes |
 
-The Core Book's *Quintessences* have no litmv2 equivalent and are currently not converted. Pack banner images are copied from the Core Book module during export, so they appear after your first export (and stay even if you later remove the source modules).
+The Core Book's *Quintessences* have no litmv2 equivalent and are currently not converted. Pack banner images are copied from the official modules during export, so they appear after your first export (and stay even if you later remove the source modules).
 
 ## Requirements
 
@@ -57,7 +57,7 @@ The conversion is a two-step round trip: **export** from a world running the off
 
 - Browse the compendia from the **Compendium Packs** sidebar tab.
 - Set the correct compendium packs to use in the litmv2 **Hero** creation tool (Tropes, Themekits, and Themebooks).
-- For **Hearts of Ravendale**, open the *LitM Hearts of Ravendale—The Dale* pack and import the adventure into your world from there.
+- For **Hearts of Ravendale**, drag what you need (scenes, journals, challenge actors) from the *Hearts of Ravendale* packs into your world.
 - **Keep the official modules — and the official system — installed.** Scene maps and artwork are loaded directly from their folders, and some rulebook pages (the Ways of Magic) use heading art from the `mist-engine-fvtt` system folder (nothing needs to be *enabled* in your litmv2 world — just installed). Uninstalling them breaks images in the converted content.
 
 ## Updating converted content
@@ -67,7 +67,7 @@ When an official module or the converter itself gets an update, re-run the conve
 1. In your **official-system** world: *Settings → Configure Settings → LitM Converter → Update Content* (re-exports everything).
 2. In your **litmv2** world: the same *Update Content* button (deletes the converter's compendia and re-imports from the fresh export).
 
-Documents you already imported into a world (e.g. the Hearts of Ravendale adventure) are not touched by a re-import (you'll have to re-import the adventure itself to update the content in your world).
+Documents you already imported into a world (e.g. Hearts of Ravendale scenes) are not touched by a re-import (re-import those documents from the updated compendia to update the copies in your world).
 
 ## Troubleshooting
 

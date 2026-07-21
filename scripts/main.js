@@ -36,7 +36,7 @@ Hooks.once("init", () => {
 	game.settings.registerMenu(MODULE_ID, "update-content", {
 		name: "Update converted content",
 		label: "Update Content",
-		hint: "Re-run the conversion. In a mist-engine world this re-exports all installed official modules; in a litmv2 world this deletes the converted compendia (including the Hearts of Ravendale adventure) and re-imports from the latest export.",
+		hint: "Re-run the conversion. In a mist-engine world this re-exports all installed official modules; in a litmv2 world this deletes the converted compendia and re-imports from the latest export.",
 		icon: "fa-solid fa-rotate",
 		type: UpdateContentShim,
 		restricted: true,
@@ -170,7 +170,7 @@ async function updateExport() {
 async function updateImport() {
 	const ok = await DialogV2.confirm({
 		window: { title: "LitM Converter — Re-import" },
-		content: `<p><b>This deletes all documents in the converter compendia</b> (including the Hearts of Ravendale adventure) and re-imports them from the latest export.</p><p>World documents you imported from these compendia are not affected.</p>`,
+		content: `<p><b>This deletes all documents in the converter compendia</b> and re-imports them from the latest export.</p><p>World documents you imported from these compendia are not affected.</p>`,
 	});
 	if (!ok) return;
 	await runImport({

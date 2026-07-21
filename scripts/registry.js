@@ -6,8 +6,9 @@ export const SYSTEM = { source: "mist-engine-fvtt", target: "litmv2" };
 /**
  * The three official modules this converter reads. Their packaging is NOT
  * assumed here — the source reader normalizes whatever packs a module ships
- * (one embedded Adventure, or typed packs as of Core Book 1.2.0) into one
- * bundle. `skipPacks` names source packs deliberately left unconverted.
+ * (one embedded Adventure, or typed packs as of Core Book 1.2.0 and Hearts
+ * of Ravendale 1.1.2) into one bundle. `skipPacks` names source packs
+ * deliberately left unconverted.
  */
 export const SOURCE_MODULES = [
 	{
@@ -31,10 +32,10 @@ export function detectInstalledSources() {
 }
 
 /**
- * Destination layout. Each source routes documents either to typed packs
- * (browsable reference / character-creation compendia) or into one Adventure
- * document. `itemPacks` sub-routes by CONVERTED item type; story_theme items
- * are wrapped into story_theme vessel actors and follow the Actor route.
+ * Destination layout. Each source routes documents to typed packs (browsable
+ * reference / character-creation compendia). `itemPacks` sub-routes by
+ * CONVERTED item type; story_theme items are wrapped into story_theme vessel
+ * actors and follow the Actor route.
  */
 export const ROUTES = {
 	"legend-in-the-mist-character-pack": {
@@ -57,8 +58,11 @@ export const ROUTES = {
 		},
 	},
 	"legend-in-the-mist-hearts-of-ravendale": {
-		adventure: "litm-hor-the-dales",
-		packs: {},
+		packs: {
+			Actor: "litm-hor-actors",
+			JournalEntry: "litm-hor-journals",
+			Scene: "litm-hor-scenes",
+		},
 		itemPacks: { theme: "litm-hor-themekits", addon: "litm-hor-items", trope: "litm-hor-tropes" },
 	},
 };
@@ -74,7 +78,9 @@ export const PACKS = [
 	{ name: "litm-core-book-tropes", docClass: "Item" },
 	{ name: "litm-core-book-tables", docClass: "RollTable" },
 	{ name: "litm-core-book-rotes", docClass: "Item" },
-	{ name: "litm-hor-the-dales", docClass: "Adventure" },
+	{ name: "litm-hor-actors", docClass: "Actor" },
+	{ name: "litm-hor-journals", docClass: "JournalEntry" },
+	{ name: "litm-hor-scenes", docClass: "Scene" },
 	{ name: "litm-hor-themekits", docClass: "Item" },
 	{ name: "litm-hor-items", docClass: "Item" },
 	{ name: "litm-hor-tropes", docClass: "Item" },

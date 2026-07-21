@@ -313,12 +313,6 @@ describe("assembleHandoff — core book v1.2 multi-pack additions", () => {
 		expect(content).toContain("@UUID[Compendium.unrelated-module.p.Item.VIG0000000000001]{X}");
 	});
 
-	it("throws when a route expects an Adventure but the source no longer ships one", () => {
-		const bundle = { hasAdventure: false, actors: [], items: [], journal: [], scenes: [], tables: [], folders: [] };
-		expect(() => assembleHandoff("legend-in-the-mist-hearts-of-ravendale", bundle))
-			.toThrow(/no longer ships an Adventure/);
-	});
-
 	it("fails loud on in-scope compendium links whose target was not converted (e.g. a link into a skipped pack)", () => {
 		const bundle = {
 			hasAdventure: false, actors: [], items: [], scenes: [], tables: [], folders: [],
@@ -436,74 +430,69 @@ describe("assembleHandoff — fail-loud guards (source structure changed)", () =
     });
 });
 
-describe("assembleHandoff — adventure-routed source (HoR)", () => {
+describe("assembleHandoff — pack-routed source (HoR ≥1.1.2)", () => {
 	const scene = { _id: "s1s1s1s1s1s1s1s1", name: "Map", folder: "sf1sf1sf1sf1sf1s", active: true, ownership: { default: 0 },
 		tokens: [{ _id: "tok1tok1tok1tok1", actorId: "n1n1n1n1n1n1n1n1" }], levels: [] };
-	const advSource = {
-		_id: "HoRDaleAdventur0", name: "Hearts of Ravendale I: The Dale",
-		img: "modules/legend-in-the-mist-hearts-of-ravendale/assets/cover.jpg", caption: "",
-		description: "<p>The Dales. See @UUID[Actor.n1n1n1n1n1n1n1n1]{The Beast}.</p>", sort: 0,
+	const bundle = {
+		hasAdventure: false,
 		actors: [npc("n1n1n1n1n1n1n1n1", "BEAST")],
 		items: [themekit, storyTheme, addon],
 		journal: [journal("See @UUID[Actor.n1n1n1n1n1n1n1n1]{The Beast} for [/s doom-2].")],
 		scenes: [scene],
+		tables: [],
 		folders: [...folders, { _id: "sf1sf1sf1sf1sf1s", type: "Scene", name: "Maps", folder: null, color: null, sorting: "a", sort: 0, description: "", flags: {} }],
 	};
-	const out = assembleHandoff("legend-in-the-mist-hearts-of-ravendale", advSource);
+	const out = assembleHandoff("legend-in-the-mist-hearts-of-ravendale", bundle);
 
-	it("builds the adventure block from the source adventure metadata", () => {
-		expect(out.adventure.pack).toBe("litm-hor-the-dales");
-		expect(out.adventure._id).toBe("HoRDaleAdventur0");
-		expect(out.adventure.name).toBe("Hearts of Ravendale I: The Dale");
-		expect(out.adventure.img).toBe("modules/legend-in-the-mist-hearts-of-ravendale/assets/cover.jpg");
-	});
-
-	it("puts actors, story-theme vessels, journal, and scenes inside the adventure", () => {
-		expect(out.adventure.actors.map((a) => a.type).sort()).toEqual(["challenge", "story_theme"]);
-		expect(out.adventure.journal).toHaveLength(1);
-		expect(out.adventure.scenes).toHaveLength(1);
-		expect(out.adventure.scenes[0].tokens[0].actorId).toBe("n1n1n1n1n1n1n1n1");
-	});
-
-	it("routes items to the HoR item packs", () => {
+	it("routes every document class to its HoR pack; no adventure block", () => {
+		expect(out.adventure).toBeUndefined();
+		expect(out.packs["litm-hor-actors"].docs.map((a) => a.type).sort()).toEqual(["challenge", "story_theme"]);
+		expect(out.packs["litm-hor-journals"].docs).toHaveLength(1);
+		expect(out.packs["litm-hor-scenes"].docs).toHaveLength(1);
+		expect(out.packs["litm-hor-scenes"].docs[0].tokens[0].actorId).toBe("n1n1n1n1n1n1n1n1");
 		expect(out.packs["litm-hor-themekits"].docs.map((i) => i.type)).toEqual(["theme"]);
 		expect(out.packs["litm-hor-items"].docs.map((i) => i.type)).toEqual(["addon"]);
 	});
 
-	it("keeps links between adventure members world-relative (they resolve on adventure import)", () => {
-		const content = out.adventure.journal[0].pages[0].text.content;
-		expect(content).toContain("@UUID[Actor.n1n1n1n1n1n1n1n1]{The Beast}");
+	it("rewrites cross-document links to their converted pack destinations", () => {
+		const content = out.packs["litm-hor-journals"].docs[0].pages[0].text.content;
+		expect(content).toContain("@UUID[Compendium.litmv2-converter.litm-hor-actors.Actor.n1n1n1n1n1n1n1n1]{The Beast}");
 		expect(content).toContain("[doom-2]");
-		expect(out.adventure.description).toContain("@UUID[Actor.n1n1n1n1n1n1n1n1]");
 	});
 
-	it("carries Actor/Scene folders (and the Story Themes folder) in the adventure, Item folders in the packs", () => {
-		const advFolderIds = out.adventure.folders.map((f) => f._id);
-		expect(advFolderIds).toContain("af1af1af1af1af1a");
-		expect(advFolderIds).toContain("sf1sf1sf1sf1sf1s");
-		expect(advFolderIds).toContain(STORY_THEMES_FOLDER_ID);
-		expect(advFolderIds).not.toContain("if0if0if0if0if0i");
+	it("carries Actor and Scene folders (and the Story Themes folder) in their class packs, Item folders in the item packs", () => {
+		const actorFolderIds = out.packs["litm-hor-actors"].folders.map((f) => f._id);
+		expect(actorFolderIds).toContain("af1af1af1af1af1a");
+		expect(actorFolderIds).toContain(STORY_THEMES_FOLDER_ID);
+		expect(out.packs["litm-hor-scenes"].folders.map((f) => f._id)).toEqual(["sf1sf1sf1sf1sf1s"]);
+		expect(actorFolderIds).not.toContain("if0if0if0if0if0i");
 		expect(out.packs["litm-hor-themekits"].folders.map((f) => [f._id, f.folder])).toEqual([["if2if2if2if2if2i", null]]);
 	});
 
-	it("counts the adventure and its members", () => {
-		expect(payloadCounts(out)).toEqual({ Adventure: 1, Actor: 2, Item: 2, JournalEntry: 1, Scene: 1 });
+	it("wraps story themes into vessel actors under the synthesized folder", () => {
+		const vessel = out.packs["litm-hor-actors"].docs.find((a) => a.type === "story_theme");
+		expect(vessel._id).toBe("st1st1st1st1st1s");
+		expect(vessel.folder).toBe(STORY_THEMES_FOLDER_ID);
+	});
+
+	it("counts per document class", () => {
+		expect(payloadCounts(out)).toEqual({ Actor: 2, Item: 2, JournalEntry: 1, Scene: 1 });
 	});
 
 	it("repairs dead Actor links whose label names an addon (known source-data defect)", () => {
 		const repaired = assembleHandoff("legend-in-the-mist-hearts-of-ravendale", {
-			...advSource,
+			...bundle,
 			journal: [journal(
 				"Try @UUID[Actor.deaddeaddeaddead]{Adapted (Add-on)} or @UUID[Actor.feedfeedfeedfeed]{ADAPTED}, but not @UUID[Actor.beefbeefbeefbeef]{Unknown Thing} or @UUID[Actor.n1n1n1n1n1n1n1n1]{The Beast}.",
 			)],
 		});
-		const content = repaired.adventure.journal[0].pages[0].text.content;
+		const content = repaired.packs["litm-hor-journals"].docs[0].pages[0].text.content;
 		// Dead id + addon-name label (with or without the "(Add-on)" suffix, any case) → compendium item link.
 		expect(content).toContain("@UUID[Compendium.litmv2-converter.litm-hor-items.Item.ad1ad1ad1ad1ad1a]{Adapted (Add-on)}");
 		expect(content).toContain("@UUID[Compendium.litmv2-converter.litm-hor-items.Item.ad1ad1ad1ad1ad1a]{ADAPTED}");
-		// Dead id with an unmatched label stays untouched; adventure-member links stay world-relative.
+		// Dead id with an unmatched label stays untouched; a live actor link rewrites to the actors pack.
 		expect(content).toContain("@UUID[Actor.beefbeefbeefbeef]{Unknown Thing}");
-		expect(content).toContain("@UUID[Actor.n1n1n1n1n1n1n1n1]{The Beast}");
+		expect(content).toContain("@UUID[Compendium.litmv2-converter.litm-hor-actors.Actor.n1n1n1n1n1n1n1n1]{The Beast}");
 	});
 });
 
@@ -521,7 +510,7 @@ describe("assembleHandoff — character pack", () => {
 	});
 
 	it("marks the payload with the current handoff format", () => {
-		expect(out.format).toBe(2);
+		expect(out.format).toBe(3);
 	});
 });
 

@@ -52,13 +52,13 @@ async function buildKitUuidMapUncached() {
 }
 
 /**
- * Bake a thumbnail into each adventure scene that lacks one. The source ships
+ * Bake a thumbnail into each converted scene that lacks one. The source ships
  * scenes with `thumb: null`, and core's auto-thumbnail (Scene#_preCreate) only
- * fires when `thumb` is absent from the creation data — adventure imports
- * always carry the field, so without baking here the imported scenes render
- * blank in the scene directory. Thumbs are stored as files under the module's
- * handoff dir and referenced by path (see writeHandoffThumb for why not
- * base64). Failures (e.g. the noCanvas setting) skip the scene rather than
+ * fires when `thumb` is absent from the creation data — our pack imports (and
+ * any later world import) always carry the field, so without baking here the
+ * scenes render blank in the sidebar. Thumbs are stored as files under the
+ * module's handoff dir and referenced by path (see writeHandoffThumb for why
+ * not base64). Failures (e.g. the noCanvas setting) skip the scene rather than
  * abort the export.
  * @param {object[]} scenes - converted scene data, mutated in place
  */
@@ -91,14 +91,16 @@ export async function exportSource(sourceModuleId) {
 	const bundle = await readSourceBundle(mod.id, mod);
 	const kitUuidByName = await buildKitUuidMap();
 	const payload = assembleHandoff(mod.id, bundle, { kitUuidByName });
-	if (payload.adventure) await bakeSceneThumbnails(payload.adventure.scenes);
+	for (const group of Object.values(payload.packs)) {
+		if (group.docClass === "Scene") await bakeSceneThumbnails(group.docs);
+	}
 	const counts = payloadCounts(payload);
 	const file = `${mod.id}.json`;
 	await writeHandoffJSON(file, payload);
 
 	const manifest = (await readHandoffJSON("manifest.json")) ?? { sources: [] };
-	// Unconditional: a pre-format-2 manifest on disk must not pin the old version.
-	manifest.version = 2;
+	// Unconditional: a stale manifest on disk must not pin an older version.
+	manifest.version = 3;
 	manifest.sources = manifest.sources.filter(s => s.id !== mod.id);
 	manifest.sources.push({ id: mod.id, label: mod.label, exportedAt: new Date().toISOString(), file, counts });
 	await writeHandoffJSON("manifest.json", manifest);

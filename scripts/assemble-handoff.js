@@ -49,9 +49,6 @@ export const CONVERTED_ITEM_TYPE = {
 	rote: () => "action",
 };
 
-const ADVENTURE = Symbol("adventure");
-const ADV_KEY = { Actor: "actors", JournalEntry: "journal", Scene: "scenes", RollTable: "tables" };
-
 /**
  * Build the text converter for one source: rewrites world-relative doc links to
  * compendium UUIDs at their converted destination, repairs known dead addon
@@ -59,19 +56,17 @@ const ADV_KEY = { Actor: "actors", JournalEntry: "journal", Scene: "scenes", Rol
  * document is captured up front (converters resolve links during conversion, so
  * the map must exist before any converter runs).
  *
- * Links to pack-bound documents rewrite to compendium UUIDs; links between
- * adventure members stay world-relative — they resolve (preserved _ids) once the
- * user imports the adventure. Story-theme items are promoted to Actors at
- * routing time, so an @UUID[Item.<id>] link to one would rewrite with a
- * mismatched document class (Item link into an Actor pack) — such links are left
- * untouched instead of mapping them to the Actor destination.
+ * Story-theme items are promoted to Actors at routing time, so an
+ * @UUID[Item.<id>] link to one would rewrite with a mismatched document class
+ * (Item link into an Actor pack) — such links are left untouched instead of
+ * mapping them to the Actor destination.
  * @param {object} route - the source's ROUTES entry
  * @param {object} adventureData - source bundle (see source-reader.js)
  * @param {string} sourceModuleId - scopes compendium-form link rewriting to this module
  * @returns {{convertText: (s: string) => string, convertUuid: (u: string) => string|null}}
  */
 function buildLinkResolver(route, adventureData, sourceModuleId) {
-	const classDest = (docClass) => route.packs?.[docClass] ?? (route.adventure ? ADVENTURE : undefined);
+	const classDest = (docClass) => route.packs?.[docClass];
 	const destOf = new Map();
 	for (const a of adventureData.actors ?? []) destOf.set(`Actor.${a._id}`, classDest("Actor"));
 	for (const j of adventureData.journal ?? []) destOf.set(`JournalEntry.${j._id}`, classDest("JournalEntry"));
@@ -139,15 +134,14 @@ function synthesizeTropes(sourceModuleId, adventureData, kitUuidByName) {
 }
 
 /**
- * Build the litmv2-shaped handoff payload from a source Adventure's data,
- * routed per the source's ROUTES entry: per-type packs, plus (for HoR) one
- * adventure block reconstructing the source's own Adventure packaging.
+ * Build the litmv2-shaped handoff payload from a source bundle, routed per the
+ * source's ROUTES entry into per-type packs.
  * Full parity: every source document must have a converter AND a destination —
  * anything else aborts the export with per-type counts (the parity gate).
  * @param {string} sourceModuleId
- * @param {object} adventureData - result of adventure.toObject()
+ * @param {object} adventureData - source bundle (see source-reader.js)
  * @param {{kitUuidByName?: Map<string, string>}} [options] - kitUuidByName keys are normalizeKitName(name); used to resolve trope theme-kit references to compendium UUIDs.
- * @returns {{format: 2, sourceId: string, packs: Record<string, {docClass: string, folders: object[], docs: object[]}>, adventure?: object}}
+ * @returns {{format: 3, sourceId: string, packs: Record<string, {docClass: string, folders: object[], docs: object[]}>}}
  */
 export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 	const route = ROUTES[sourceModuleId];
@@ -186,34 +180,14 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 	};
 	const ctx = { convertText, convertUuid, kitHints, themebookFields };
 
-	// Bundles built by the source reader always carry hasAdventure; an explicit
-	// false with an adventure route means the source module restructured out of
-	// its Adventure packaging (as the Core Book did in 1.2.0) — fail with
-	// instructions rather than emitting an empty adventure.
-	if (route.adventure && adventureData.hasAdventure === false)
-		throw new Error(`${sourceModuleId} routes to an Adventure pack but no longer ships an Adventure document — update its ROUTES entry.`);
-
 	const packs = {};
 	const packGroup = (packName, docClass) => (packs[packName] ??= { docClass, folders: [], docs: [] });
-	const adventure = route.adventure
-		? {
-			pack: route.adventure,
-			_id: adventureData._id,
-			name: adventureData.name,
-			img: adventureData.img,
-			caption: adventureData.caption ?? "",
-			description: convertText(adventureData.description ?? ""),
-			sort: adventureData.sort ?? 0,
-			actors: [], journal: [], scenes: [], tables: [], folders: [],
-		}
-		: undefined;
 
 	const unknown = {};
 	const note = (type) => (unknown[type] = (unknown[type] ?? 0) + 1);
 	const routeDoc = (docClass, doc, sourceType) => {
 		const packName = route.packs?.[docClass];
 		if (packName) packGroup(packName, docClass).docs.push(doc);
-		else if (adventure) adventure[ADV_KEY[docClass]].push(doc);
 		else note(sourceType);
 	};
 
@@ -301,65 +275,47 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 	}
 
 	// Folders. Item folders follow their documents (per pack, shared ancestors
-	// replicated); Actor/Journal/Scene folders go whole to their class pack or
-	// into the adventure (world folders on import).
+	// replicated); Actor/Journal/Scene folders go whole to their class pack.
 	const folders = adventureData.folders ?? [];
 	const packClasses = ["Actor", "JournalEntry", "Scene", "RollTable"].filter((c) => route.packs?.[c]);
 	for (const [docClass, classFolders] of Object.entries(splitFolders(folders, packClasses))) {
 		packGroup(route.packs[docClass], docClass).folders.push(...classFolders);
 	}
-	if (adventure) {
-		const advClasses = ["Actor", "JournalEntry", "Scene", "RollTable"].filter((c) => !route.packs?.[c]);
-		adventure.folders = Object.values(splitFolders(folders, advClasses)).flat();
-	}
 	for (const [packName, packFolders] of Object.entries(splitItemFolders(folders, itemFolderRefs))) {
 		packGroup(packName, "Item").folders.push(...packFolders);
 	}
-	if (storyThemeCount) {
-		const actorPack = route.packs?.Actor;
-		if (actorPack) packGroup(actorPack, "Actor").folders.push(storyThemesFolder());
-		else adventure.folders.push(storyThemesFolder());
-	}
+	// A story theme without an Actor route would already have tripped the
+	// parity gate above, so the Actor pack is guaranteed here.
+	if (storyThemeCount) packGroup(route.packs.Actor, "Actor").folders.push(storyThemesFolder());
 
 	// Flatten redundant wrappers per approved trees (see 2026-07-12 spec).
 	// Wrapper name = the part of the module label after the em-dash
 	// ("Legend In The Mist — Character Pack" → "Character Pack"), compared
-	// case-insensitively against folder names. Adventure folders are left
-	// alone: they import as WORLD folders, where the module wrapper is
-	// meaningful, not redundant.
+	// case-insensitively against folder names.
 	const wrapper = SOURCE_MODULES.find((m) => m.id === sourceModuleId)?.label.split("—").pop().trim();
 	for (const group of Object.values(packs)) flattenPackFolders(group, wrapper ? [wrapper] : []);
 
 	// Link parity gate: an in-scope compendium link that survives to the payload
 	// can never resolve in a litmv2 world (its target was not converted — e.g. a
-	// future rulebook link into a skipPacks pack). World-relative links are fine
-	// (adventure members resolve after import); only source-module compendium
+	// future rulebook link into a skipPacks pack). Only source-module compendium
 	// UUIDs are guaranteed-dead. Fail loud rather than ship broken links.
-	const residual = (JSON.stringify(packs) + JSON.stringify(adventure ?? null))
+	const residual = JSON.stringify(packs)
 		.match(new RegExp(`Compendium\\.${sourceModuleId}\\.`, "g"));
 	if (residual)
 		throw new Error(`${residual.length} link(s) into ${sourceModuleId} could not be rewritten to converted content (unconverted or skipped target?). Full parity requires every referenced document to convert.`);
 
-	return { format: 2, sourceId: sourceModuleId, packs, adventure };
+	return { format: 3, sourceId: sourceModuleId, packs };
 }
 
 /**
  * Per-document-class counts for one handoff payload (manifest + toasts).
- * The adventure counts once under "Adventure", plus its member classes.
  * @param {ReturnType<typeof assembleHandoff>} payload
  * @returns {Record<string, number>}
  */
 export function payloadCounts(payload) {
 	const counts = {};
-	const bump = (cls, n) => { if (n) counts[cls] = (counts[cls] ?? 0) + n; };
-	for (const group of Object.values(payload.packs ?? {})) bump(group.docClass, group.docs.length);
-	const adv = payload.adventure;
-	if (adv) {
-		bump("Adventure", 1);
-		bump("Actor", adv.actors.length);
-		bump("JournalEntry", adv.journal.length);
-		bump("Scene", adv.scenes.length);
-		bump("RollTable", (adv.tables ?? []).length);
+	for (const group of Object.values(payload.packs ?? {})) {
+		if (group.docs.length) counts[group.docClass] = (counts[group.docClass] ?? 0) + group.docs.length;
 	}
 	return counts;
 }

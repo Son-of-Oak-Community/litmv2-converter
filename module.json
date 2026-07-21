@@ -2,7 +2,7 @@
   "id": "litmv2-converter",
   "title": "LitM Converter",
   "description": "Convert your own official Legend in the Mist content from the Official system into litmv2 content.",
-  "version": "1.1",
+  "version": "1.2",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -131,6 +131,18 @@
       }
     },
     {
+      "name": "litm-hor-actors",
+      "label": "Actors",
+      "banner": "modules/litmv2-converter/handoff/banners/litm-hor-actors.webp",
+      "path": "packs/litm-hor-actors",
+      "type": "Actor",
+      "system": "litmv2",
+      "ownership": {
+        "PLAYER": "NONE",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
       "name": "litm-hor-items",
       "label": "Challenge Add-ons",
       "banner": "modules/litmv2-converter/handoff/banners/litm-hor-items.webp",
@@ -143,11 +155,23 @@
       }
     },
     {
-      "name": "litm-hor-the-dales",
+      "name": "litm-hor-journals",
       "label": "The Dale",
-      "banner": "modules/litmv2-converter/handoff/banners/litm-hor-the-dales.webp",
-      "path": "packs/litm-hor-the-dales",
-      "type": "Adventure",
+      "banner": "modules/litmv2-converter/handoff/banners/litm-hor-journals.webp",
+      "path": "packs/litm-hor-journals",
+      "type": "JournalEntry",
+      "system": "litmv2",
+      "ownership": {
+        "PLAYER": "NONE",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "litm-hor-scenes",
+      "label": "Maps & Scenes",
+      "banner": "modules/litmv2-converter/handoff/banners/litm-hor-scenes.webp",
+      "path": "packs/litm-hor-scenes",
+      "type": "Scene",
       "system": "litmv2",
       "ownership": {
         "PLAYER": "NONE",
@@ -209,8 +233,10 @@
           "name": "Hearts of Ravendale",
           "sorting": "a",
           "packs": [
+            "litm-hor-actors",
             "litm-hor-items",
-            "litm-hor-the-dales",
+            "litm-hor-journals",
+            "litm-hor-scenes",
             "litm-hor-themekits",
             "litm-hor-tropes"
           ]

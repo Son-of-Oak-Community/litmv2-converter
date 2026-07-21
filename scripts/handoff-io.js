@@ -22,55 +22,60 @@ export async function ensureHandoffDir() {
 }
 
 const BANNERS_DIR = `${HANDOFF_DIR}/banners`;
-const BANNER_SOURCE_DIR = "modules/legend-in-the-mist-core-book/assets/art/banners";
+const CORE_BOOK = "legend-in-the-mist-core-book";
+const HOR = "legend-in-the-mist-hearts-of-ravendale";
 
 /**
- * Destination pack → Core Book banner slice. The ten official banners are
- * consecutive horizontal slices of ONE tall landscape painting; the official
- * module assigns them to its packs in sidebar display order (alphabetical by
- * label) so adjacent rows stitch into a continuous scene. Mirror that: within
- * each of our sidebar folders, packs get banner_01..N in alphabetical-label
- * order (enforced by tests/banners.test.js). Files are COPIED from the user's
- * installed (owned) Core Book module into the handoff dir at export time —
+ * Destination pack → official banner slice. Each official module's banners are
+ * consecutive horizontal slices of ONE tall painting; the official modules
+ * assign them to their packs in sidebar display order so adjacent rows stitch
+ * into a continuous scene. Mirror that: within each of our sidebar folders,
+ * packs get banner_01..N in alphabetical-label order — our folders sort "a" —
+ * (enforced by tests/banners.test.js). Files are COPIED from the user's
+ * installed (owned) source module into the handoff dir at export time —
  * module.json's static banner paths point at the copies, and nothing official
- * is committed to this repo.
+ * is committed to this repo. The Character Pack module ships no banners, so
+ * its pack borrows the Core Book's first slice.
  */
 export const BANNER_SOURCES = {
 	// Character Pack folder
-	"litm-character-pack": "banner_01.webp",
+	"litm-character-pack": { module: CORE_BOOK, file: "banner_01.webp" },
 	// Core Book folder: Actors, Oracle Tables, Rotes, Rulebooks, Themebooks,
 	// Themekits, Tropes, Vignettes & Add-ons
-	"litm-core-book-actors": "banner_01.webp",
-	"litm-core-book-tables": "banner_02.webp",
-	"litm-core-book-rotes": "banner_03.webp",
-	"litm-core-book-journals": "banner_04.webp",
-	"litm-core-book-themebooks": "banner_05.webp",
-	"litm-core-book-themekits": "banner_06.webp",
-	"litm-core-book-tropes": "banner_07.webp",
-	"litm-core-book-items": "banner_08.webp",
-	// Hearts of Ravendale folder: Challenge Add-ons, The Dale, Themekits, Tropes
-	"litm-hor-items": "banner_01.webp",
-	"litm-hor-the-dales": "banner_02.webp",
-	"litm-hor-themekits": "banner_03.webp",
-	"litm-hor-tropes": "banner_04.webp",
+	"litm-core-book-actors": { module: CORE_BOOK, file: "banner_01.webp" },
+	"litm-core-book-tables": { module: CORE_BOOK, file: "banner_02.webp" },
+	"litm-core-book-rotes": { module: CORE_BOOK, file: "banner_03.webp" },
+	"litm-core-book-journals": { module: CORE_BOOK, file: "banner_04.webp" },
+	"litm-core-book-themebooks": { module: CORE_BOOK, file: "banner_05.webp" },
+	"litm-core-book-themekits": { module: CORE_BOOK, file: "banner_06.webp" },
+	"litm-core-book-tropes": { module: CORE_BOOK, file: "banner_07.webp" },
+	"litm-core-book-items": { module: CORE_BOOK, file: "banner_08.webp" },
+	// Hearts of Ravendale folder: Actors, Challenge Add-ons, Maps & Scenes,
+	// The Dale, Themekits, Tropes (HoR ≥1.1.2 ships 7 slices; the 7th is unused)
+	"litm-hor-actors": { module: HOR, file: "banner_01.webp" },
+	"litm-hor-items": { module: HOR, file: "banner_02.webp" },
+	"litm-hor-scenes": { module: HOR, file: "banner_03.webp" },
+	"litm-hor-journals": { module: HOR, file: "banner_04.webp" },
+	"litm-hor-themekits": { module: HOR, file: "banner_05.webp" },
+	"litm-hor-tropes": { module: HOR, file: "banner_06.webp" },
 };
 
 const bannersEnsured = { done: false };
 const bannersCopied = { done: false };
 
 /**
- * Copy pack banner art from the installed Core Book module into
- * handoff/banners/<destPack>.webp. Silent no-op per file when the Core Book
- * module (the only official module shipping banner slices) is not installed —
- * packs then render without a banner, which is cosmetic. Runs once per session.
+ * Copy pack banner art from the installed source modules into
+ * handoff/banners/<destPack>.webp. Silent no-op per file when the owning
+ * module is not installed — packs then render without a banner, which is
+ * cosmetic. Runs once per session.
  */
 export async function copyPackBanners() {
 	if (bannersCopied.done) return;
 	await ensureHandoffDir();
 	await ensureDir(BANNERS_DIR, bannersEnsured);
-	for (const [packName, file] of Object.entries(BANNER_SOURCES)) {
+	for (const [packName, { module, file }] of Object.entries(BANNER_SOURCES)) {
 		try {
-			const res = await fetch(`/${BANNER_SOURCE_DIR}/${file}`);
+			const res = await fetch(`/modules/${module}/assets/art/banners/${file}`);
 			if (!res.ok) continue;
 			const blob = await res.blob();
 			const upload = new File([blob], `${packName}.webp`, { type: blob.type || "image/webp" });

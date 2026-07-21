@@ -24,7 +24,7 @@ describe("registry", () => {
 		expect(detectInstalledSources()).toEqual([]);
 	});
 
-	it("declares the thirteen-pack layout", () => {
+	it("declares the fifteen-pack layout", () => {
 		expect(PACKS.map((p) => p.name)).toEqual([
 			"litm-character-pack",
 			"litm-core-book-actors",
@@ -35,12 +35,14 @@ describe("registry", () => {
 			"litm-core-book-tropes",
 			"litm-core-book-tables",
 			"litm-core-book-rotes",
-			"litm-hor-the-dales",
+			"litm-hor-actors",
+			"litm-hor-journals",
+			"litm-hor-scenes",
 			"litm-hor-themekits",
 			"litm-hor-items",
 			"litm-hor-tropes",
 		]);
-		expect(PACKS.find((p) => p.name === "litm-hor-the-dales").docClass).toBe("Adventure");
+		expect(PACKS.find((p) => p.name === "litm-hor-scenes").docClass).toBe("Scene");
 		expect(PACKS.find((p) => p.name === "litm-core-book-tables").docClass).toBe("RollTable");
 	});
 
@@ -50,9 +52,12 @@ describe("registry", () => {
 		for (const route of Object.values(ROUTES)) {
 			for (const pack of Object.values(route.packs ?? {})) expect(names.has(pack)).toBe(true);
 			for (const pack of Object.values(route.itemPacks ?? {})) expect(names.has(pack)).toBe(true);
-			if (route.adventure) expect(names.has(route.adventure)).toBe(true);
 		}
-		expect(ROUTES["legend-in-the-mist-hearts-of-ravendale"].adventure).toBe("litm-hor-the-dales");
+		expect(ROUTES["legend-in-the-mist-hearts-of-ravendale"].packs).toEqual({
+			Actor: "litm-hor-actors",
+			JournalEntry: "litm-hor-journals",
+			Scene: "litm-hor-scenes",
+		});
 		expect(ROUTES["legend-in-the-mist-core-book"].packs.RollTable).toBe("litm-core-book-tables");
 		expect(ROUTES["legend-in-the-mist-core-book"].itemPacks.action).toBe("litm-core-book-rotes");
 		expect(ROUTES["legend-in-the-mist-core-book"].itemPacks.vignette).toBe("litm-core-book-items");
