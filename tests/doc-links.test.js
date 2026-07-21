@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { repairDocLinksByName, rewriteDocLinks } from "../scripts/core/doc-links.js";
+import { repairDocLinksByName, rewriteDocLinks, rewriteUuid } from "../scripts/core/doc-links.js";
 
 const resolve = (cls, id) =>
 	id === "aaaaaaaaaaaaaaaa" && cls === "Actor" ? "litmv2-converter.bridge-actors" : null;
@@ -21,6 +21,36 @@ describe("rewriteDocLinks", () => {
 	it("handles empty input", () => {
 		expect(rewriteDocLinks("", resolve)).toBe("");
 		expect(rewriteDocLinks(undefined, resolve)).toBe("");
+	});
+});
+
+describe("compendium-form links (core book ≥1.2)", () => {
+	const resolvePack = (_docClass, id) =>
+		id === "AAAAAAAAAAAAAAAA" ? "litmv2-converter.litm-core-book-items" : null;
+	const opts = { scopes: ["legend-in-the-mist-core-book"] };
+
+	it("rewrites a source compendium link to the destination pack, preserving tail", () => {
+		const s = "@UUID[Compendium.legend-in-the-mist-core-book.litm-core-vignettes.Item.AAAAAAAAAAAAAAAA]{V}";
+		expect(rewriteDocLinks(s, resolvePack, opts))
+			.toBe("@UUID[Compendium.litmv2-converter.litm-core-book-items.Item.AAAAAAAAAAAAAAAA]{V}");
+		const page = "@UUID[Compendium.legend-in-the-mist-core-book.litm-core-vignettes.Item.AAAAAAAAAAAAAAAA.JournalEntryPage.BBBBBBBBBBBBBBBB#anchor]";
+		expect(rewriteDocLinks(page, resolvePack, opts))
+			.toBe("@UUID[Compendium.litmv2-converter.litm-core-book-items.Item.AAAAAAAAAAAAAAAA.JournalEntryPage.BBBBBBBBBBBBBBBB#anchor]");
+	});
+
+	it("leaves other scopes and unknown ids untouched", () => {
+		const foreign = "@UUID[Compendium.some-other-module.pack.Item.AAAAAAAAAAAAAAAA]";
+		expect(rewriteDocLinks(foreign, resolvePack, opts)).toBe(foreign);
+		const unknown = "@UUID[Compendium.legend-in-the-mist-core-book.p.Item.CCCCCCCCCCCCCCCC]";
+		expect(rewriteDocLinks(unknown, resolvePack, opts)).toBe(unknown);
+	});
+
+	it("rewriteUuid rewrites bare UUID strings and passes everything else through", () => {
+		expect(rewriteUuid("Compendium.legend-in-the-mist-core-book.litm-core-vignettes.Item.AAAAAAAAAAAAAAAA", resolvePack, opts))
+			.toBe("Compendium.litmv2-converter.litm-core-book-items.Item.AAAAAAAAAAAAAAAA");
+		expect(rewriteUuid("Compendium.other.p.Item.AAAAAAAAAAAAAAAA", resolvePack, opts))
+			.toBe("Compendium.other.p.Item.AAAAAAAAAAAAAAAA");
+		expect(rewriteUuid(null, resolvePack, opts)).toBe(null);
 	});
 });
 

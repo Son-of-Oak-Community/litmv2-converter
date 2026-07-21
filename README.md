@@ -6,13 +6,15 @@ This module ships **no game content**. It reads the official modules you have pu
 
 ## What you get
 
-After running the converter, the following compendia are populated (per official module you own):
+After running the converter, the compendium sidebar gains a **Legend in the Mist** folder with one subfolder per official module you own:
 
 | Official module | Converted compendia |
 | --- | --- |
-| Legend In The Mist — Core Book | Actors, Journals (the rulebook), Themebooks, Themekits, Items (vignettes & challenge add-ons), Tropes |
+| Legend In The Mist — Core Book | Actors, Rulebooks (journals), Themebooks, Themekits, Vignettes & Add-ons, Tropes, Oracle Tables, Rotes (as litmv2 actions) |
 | Legend In The Mist — Character Pack | Pre-made character Actors |
-| Legend In The Mist — Hearts of Ravendale | *The Dale* adventure (scenes, journals, NPCs), Themekits, Items, Tropes |
+| Legend In The Mist — Hearts of Ravendale | *The Dale* adventure (scenes, journals, NPCs), Themekits, Challenge Add-ons, Tropes |
+
+The Core Book's *Quintessences* have no litmv2 equivalent and are currently not converted. Pack banner images are copied from the Core Book module during export, so they appear after your first export (and stay even if you later remove the source modules).
 
 ## Requirements
 
@@ -56,7 +58,7 @@ The conversion is a two-step round trip: **export** from a world running the off
 - Browse the compendia from the **Compendium Packs** sidebar tab.
 - Set the correct compendium packs to use in the litmv2 **Hero** creation tool (Tropes, Themekits, and Themebooks).
 - For **Hearts of Ravendale**, open the *LitM Hearts of Ravendale—The Dale* pack and import the adventure into your world from there.
-- **Keep the official modules installed.** Scene maps and artwork are loaded directly from their folders (they do not need to be *enabled* in your litmv2 world — just installed). Uninstalling them breaks images in the converted content.
+- **Keep the official modules — and the official system — installed.** Scene maps and artwork are loaded directly from their folders, and some rulebook pages (the Ways of Magic) use heading art from the `mist-engine-fvtt` system folder (nothing needs to be *enabled* in your litmv2 world — just installed). Uninstalling them breaks images in the converted content.
 
 ## Updating converted content
 

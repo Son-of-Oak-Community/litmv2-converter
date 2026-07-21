@@ -13,6 +13,7 @@ const cases = [
 	{ type: "themebook", item: { type: "themebook", name: "Story", system: { options: { isStoryTheme: true }, powertags: [], weaknesstags: [] } } },
 	{ type: "shortchallenge", item: { type: "shortchallenge", name: "Vig", system: {} } },
 	{ type: "challenge-addon", item: { type: "challenge-addon", name: "Add", system: {} } },
+	{ type: "rote", item: { type: "rote", name: "Rote", _id: "ROTE0000000000AA", system: { powertags: [], weaknesstags: [], success: "<p><strong>CREATE</strong> x.</p>", consequences: "" } } },
 ];
 
 describe("CONVERTED_ITEM_TYPE stays in sync with ITEM_CONVERTERS", () => {

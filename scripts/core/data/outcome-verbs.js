@@ -40,6 +40,19 @@ export const GIVE_STATUS_VERBS = {
 export const FALLBACK_VERB = "enhance";
 
 /**
+ * Rote success headers: `<strong>VERB</strong>` word (lowercased) → litmv2
+ * verb id. Unlike hero example-action outcomes (free prose, see tables
+ * above), rote successes name their verb explicitly, so this is an identity
+ * map over litmv2's SUCCESS_VERBS plus the two-word spelling of setBack.
+ */
+export const STRONG_VERBS = {
+	attack: "attack", disrupt: "disrupt", influence: "influence", weaken: "weaken",
+	bestow: "bestow", create: "create", enhance: "enhance", restore: "restore",
+	advance: "advance", "set back": "setBack", lessen: "lessen",
+	quick: "quick", discover: "discover",
+};
+
+/**
  * Resolve an outcome line to a litmv2 success verb, reporting whether the
  * corpus tables actually matched. `matched` is false only when the fallback
  * fired: an unrecognized leading word, or a "give" line whose statuses are

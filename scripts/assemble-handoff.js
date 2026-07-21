@@ -1,5 +1,5 @@
 // scripts/assemble-handoff.js
-import { repairDocLinksByName, rewriteDocLinks } from "./core/doc-links.js";
+import { repairDocLinksByName, rewriteDocLinks, rewriteUuid } from "./core/doc-links.js";
 import { findPageHtml } from "./core/journal-source.js";
 import { translateMarkup } from "./core/markup.js";
 import { convertAddon } from "./core/converters/addon.js";
@@ -9,6 +9,8 @@ import { convertHero } from "./core/converters/hero.js";
 import { convertJournal } from "./core/converters/journal.js";
 import { convertJourney } from "./core/converters/journey.js";
 import { convertNpc } from "./core/converters/npc.js";
+import { convertRollTable } from "./core/converters/rolltable.js";
+import { convertRote } from "./core/converters/rote.js";
 import { convertScene } from "./core/converters/scene.js";
 import { convertStoryThemeActor, storyThemesFolder } from "./core/converters/story-theme-actor.js";
 import { parseFellowshipThemebook, parseThemebookIndex } from "./core/converters/themebook-fields.js";
@@ -17,6 +19,7 @@ import { convertThemekit } from "./core/converters/themekit.js";
 import { convertTrope, parseTropes } from "./core/converters/trope.js";
 import { convertShortChallenge } from "./core/converters/vignette.js";
 import { normalizeKitName } from "./core/data/themekit-index.js";
+import { normalizeThemebookName } from "./core/util.js";
 import { MODULE_ID, ROUTES, SOURCE_MODULES } from "./registry.js";
 
 const ACTOR_CONVERTERS = {
@@ -30,6 +33,7 @@ export const ITEM_CONVERTERS = {
 	themebook: convertThemebookItem,
 	shortchallenge: convertShortChallenge,
 	"challenge-addon": convertAddon,
+	rote: convertRote,
 };
 
 // Converted-type prediction without running the converter — the link resolver
@@ -42,10 +46,11 @@ export const CONVERTED_ITEM_TYPE = {
 	themebook: (i) => (i.system?.options?.isStoryTheme ? "story_theme" : "themebook"),
 	shortchallenge: () => "vignette",
 	"challenge-addon": () => "addon",
+	rote: () => "action",
 };
 
 const ADVENTURE = Symbol("adventure");
-const ADV_KEY = { Actor: "actors", JournalEntry: "journal", Scene: "scenes" };
+const ADV_KEY = { Actor: "actors", JournalEntry: "journal", Scene: "scenes", RollTable: "tables" };
 
 /**
  * Build the text converter for one source: rewrites world-relative doc links to
@@ -61,15 +66,17 @@ const ADV_KEY = { Actor: "actors", JournalEntry: "journal", Scene: "scenes" };
  * mismatched document class (Item link into an Actor pack) — such links are left
  * untouched instead of mapping them to the Actor destination.
  * @param {object} route - the source's ROUTES entry
- * @param {object} adventureData - result of adventure.toObject()
- * @returns {(s: string) => string}
+ * @param {object} adventureData - source bundle (see source-reader.js)
+ * @param {string} sourceModuleId - scopes compendium-form link rewriting to this module
+ * @returns {{convertText: (s: string) => string, convertUuid: (u: string) => string|null}}
  */
-function buildLinkResolver(route, adventureData) {
+function buildLinkResolver(route, adventureData, sourceModuleId) {
 	const classDest = (docClass) => route.packs?.[docClass] ?? (route.adventure ? ADVENTURE : undefined);
 	const destOf = new Map();
 	for (const a of adventureData.actors ?? []) destOf.set(`Actor.${a._id}`, classDest("Actor"));
 	for (const j of adventureData.journal ?? []) destOf.set(`JournalEntry.${j._id}`, classDest("JournalEntry"));
 	for (const s of adventureData.scenes ?? []) destOf.set(`Scene.${s._id}`, classDest("Scene"));
+	for (const t of adventureData.tables ?? []) destOf.set(`RollTable.${t._id}`, classDest("RollTable"));
 	for (const i of adventureData.items ?? []) {
 		const converted = CONVERTED_ITEM_TYPE[i.type]?.(i);
 		destOf.set(`Item.${i._id}`, converted === "story_theme" ? undefined : route.itemPacks?.[converted]);
@@ -97,7 +104,12 @@ function buildLinkResolver(route, adventureData) {
 		if (docClass !== "Actor" || destOf.has(`Actor.${id}`)) return null;
 		return addonByLabel.get(addonLabel(label)) ?? null;
 	};
-	return (s) => translateMarkup(repairDocLinksByName(rewriteDocLinks(s, resolvePack), repairLink));
+	const scopes = [sourceModuleId];
+	return {
+		convertText: (s) =>
+			translateMarkup(repairDocLinksByName(rewriteDocLinks(s, resolvePack, { scopes }), repairLink)),
+		convertUuid: (u) => rewriteUuid(u, resolvePack, { scopes }),
+	};
 }
 
 /**
@@ -156,7 +168,7 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 	// Link resolution keys on each document's converted destination, so it must
 	// be built before any converter runs (converters call convertText, which
 	// resolves links).
-	const convertText = buildLinkResolver(route, adventureData);
+	const { convertText, convertUuid } = buildLinkResolver(route, adventureData, sourceModuleId);
 
 	// Folder-derived kit hints: Themekits/<Level>/<Themebook> paths.
 	const folderById = new Map((adventureData.folders ?? []).map((f) => [f._id, f]));
@@ -172,7 +184,14 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 		const themebook = folderChain(source.folder).at(-1);
 		return { level, themebook: level ? themebook : undefined };
 	};
-	const ctx = { convertText, kitHints, themebookFields };
+	const ctx = { convertText, convertUuid, kitHints, themebookFields };
+
+	// Bundles built by the source reader always carry hasAdventure; an explicit
+	// false with an adventure route means the source module restructured out of
+	// its Adventure packaging (as the Core Book did in 1.2.0) — fail with
+	// instructions rather than emitting an empty adventure.
+	if (route.adventure && adventureData.hasAdventure === false)
+		throw new Error(`${sourceModuleId} routes to an Adventure pack but no longer ships an Adventure document — update its ROUTES entry.`);
 
 	const packs = {};
 	const packGroup = (packName, docClass) => (packs[packName] ??= { docClass, folders: [], docs: [] });
@@ -185,7 +204,7 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 			caption: adventureData.caption ?? "",
 			description: convertText(adventureData.description ?? ""),
 			sort: adventureData.sort ?? 0,
-			actors: [], journal: [], scenes: [], folders: [],
+			actors: [], journal: [], scenes: [], tables: [], folders: [],
 		}
 		: undefined;
 
@@ -218,16 +237,36 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 		packGroup(packName, "Item").docs.push(converted);
 		itemFolderRefs.push({ folder: item.folder ?? null, pack: packName });
 	}
-	// The Fellowship themebook has no source document — synthesize it from the owned
-	// "Fellowship Creation" page when this source produced themebooks.
+	// The Fellowship themebook: Core Book ≥1.2 ships it as a real doc, but that
+	// doc is incomplete where the "Fellowship Creation" page is not — its five
+	// specialImprovements have EMPTY names (source data defect; the converter's
+	// empty-name filter drops them) and, like all source themebooks, it carries
+	// no envisioningTags/questIdeas. Merge the page-parsed fields into the
+	// official doc; only when no official doc exists (older module versions) is
+	// the fully synthesized themebook pushed instead.
 	const themebookPack = route.itemPacks?.themebook;
-	if (themebookPack && packs[themebookPack]?.docs.length && fellowshipHtml) {
+	const themebookDocs = themebookPack ? (packs[themebookPack]?.docs ?? []) : [];
+	const official = themebookDocs.find((d) => normalizeThemebookName(d.name).includes("fellowship"));
+	// An official Fellowship doc WITHOUT the page would ship subtly wrong (no
+	// envisioning tags/quest ideas, zero improvements after the empty-name
+	// filter, isFellowship false) — that's worse than absent, so fail loud.
+	if (official && !fellowshipHtml)
+		throw new Error("Official Fellowship themebook found but no Fellowship Creation page — source structure changed (the page supplies its envisioning tags, quest ideas, and special improvements).");
+	if (themebookPack && themebookDocs.length && fellowshipHtml) {
 		const fellowship = parseFellowshipThemebook(fellowshipHtml);
 		if (!fellowship) throw new Error("Fellowship Creation page found but the Fellowship themebook block did not parse.");
-		const folder = packs[themebookPack].docs[0].folder ?? null;
-		fellowship.folder = folder;
-		packs[themebookPack].docs.push(fellowship);
-		itemFolderRefs.push({ folder, pack: themebookPack });
+		if (official) {
+			official.system.isFellowship = true;
+			official.system.envisioningTags = fellowship.system.envisioningTags;
+			official.system.questIdeas = fellowship.system.questIdeas;
+			if (!official.system.specialImprovements.length)
+				official.system.specialImprovements = fellowship.system.specialImprovements;
+		} else {
+			const folder = themebookDocs[0].folder ?? null;
+			fellowship.folder = folder;
+			packs[themebookPack].docs.push(fellowship);
+			itemFolderRefs.push({ folder, pack: themebookPack });
+		}
 	}
 	// Fellowship themekits have no source document — synthesize them from the owned page.
 	// Unlike the flat themebook pack above, the themekit pack is deeply folder-nested by
@@ -254,6 +293,7 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 
 	for (const journal of adventureData.journal ?? []) routeDoc("JournalEntry", convertJournal(journal, ctx), "JournalEntry");
 	for (const scene of adventureData.scenes ?? []) routeDoc("Scene", convertScene(scene), "Scene");
+	for (const table of adventureData.tables ?? []) routeDoc("RollTable", convertRollTable(table, ctx), "RollTable");
 
 	if (Object.keys(unknown).length) {
 		const counts = Object.entries(unknown).map(([k, v]) => `${k} (${v})`).join(", ");
@@ -264,12 +304,12 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 	// replicated); Actor/Journal/Scene folders go whole to their class pack or
 	// into the adventure (world folders on import).
 	const folders = adventureData.folders ?? [];
-	const packClasses = ["Actor", "JournalEntry", "Scene"].filter((c) => route.packs?.[c]);
+	const packClasses = ["Actor", "JournalEntry", "Scene", "RollTable"].filter((c) => route.packs?.[c]);
 	for (const [docClass, classFolders] of Object.entries(splitFolders(folders, packClasses))) {
 		packGroup(route.packs[docClass], docClass).folders.push(...classFolders);
 	}
 	if (adventure) {
-		const advClasses = ["Actor", "JournalEntry", "Scene"].filter((c) => !route.packs?.[c]);
+		const advClasses = ["Actor", "JournalEntry", "Scene", "RollTable"].filter((c) => !route.packs?.[c]);
 		adventure.folders = Object.values(splitFolders(folders, advClasses)).flat();
 	}
 	for (const [packName, packFolders] of Object.entries(splitItemFolders(folders, itemFolderRefs))) {
@@ -290,6 +330,16 @@ export function assembleHandoff(sourceModuleId, adventureData, options = {}) {
 	const wrapper = SOURCE_MODULES.find((m) => m.id === sourceModuleId)?.label.split("—").pop().trim();
 	for (const group of Object.values(packs)) flattenPackFolders(group, wrapper ? [wrapper] : []);
 
+	// Link parity gate: an in-scope compendium link that survives to the payload
+	// can never resolve in a litmv2 world (its target was not converted — e.g. a
+	// future rulebook link into a skipPacks pack). World-relative links are fine
+	// (adventure members resolve after import); only source-module compendium
+	// UUIDs are guaranteed-dead. Fail loud rather than ship broken links.
+	const residual = (JSON.stringify(packs) + JSON.stringify(adventure ?? null))
+		.match(new RegExp(`Compendium\\.${sourceModuleId}\\.`, "g"));
+	if (residual)
+		throw new Error(`${residual.length} link(s) into ${sourceModuleId} could not be rewritten to converted content (unconverted or skipped target?). Full parity requires every referenced document to convert.`);
+
 	return { format: 2, sourceId: sourceModuleId, packs, adventure };
 }
 
@@ -309,6 +359,7 @@ export function payloadCounts(payload) {
 		bump("Actor", adv.actors.length);
 		bump("JournalEntry", adv.journal.length);
 		bump("Scene", adv.scenes.length);
+		bump("RollTable", (adv.tables ?? []).length);
 	}
 	return counts;
 }

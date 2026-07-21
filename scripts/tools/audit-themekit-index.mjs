@@ -47,34 +47,45 @@ function dataRoot() {
 	return root;
 }
 
-// Each source module ships one Adventure pack; the pack name is the part of
-// packId after the module id. On-disk layout is the standard modules/<id>/packs/<pack>.
-function adventurePackDir(root, mod) {
-	const packName = mod.packId.split(".").slice(1).join(".");
-	return path.join(root, "modules", mod.id, "packs", packName);
+// All pack dirs a source module ships, using the standard modules/<id>/packs/<pack>
+// layout. Modules may package content as one Adventure pack (character pack, HoR)
+// or as typed packs (Core Book ≥1.2) — this tool reads every pack and handles both.
+function packDirs(root, mod) {
+	const packsRoot = path.join(root, "modules", mod.id, "packs");
+	if (!fs.existsSync(packsRoot)) return [];
+	return fs.readdirSync(packsRoot, { withFileTypes: true })
+		.filter((e) => e.isDirectory())
+		.map((e) => path.join(packsRoot, e.name));
 }
 
 // normalizeKitName(name) -> { name, folderDerivable } for every installed themekit.
+// Kits appear either embedded in an Adventure document (with the adventure's own
+// `folders` array) or as standalone `!items!` documents foldered by the pack's
+// `!folders!` documents; the tier-from-folder-chain rule is the same for both.
 async function installedThemekits(root) {
 	const kits = new Map();
+	const record = (it, chain) => {
+		if (it.type !== "themekit") return;
+		kits.set(normalizeKitName(it.name), { name: it.name, folderDerivable: chain(it.folder).some((n) => LEVELS.has(n)) });
+	};
+	const chainIn = (folders) => (fid) => {
+		const names = [];
+		for (let f = folders.get(fid); f; f = folders.get(f.folder)) names.push((f.name ?? "").toLowerCase());
+		return names;
+	};
 	for (const mod of SOURCE_MODULES) {
-		const dir = adventurePackDir(root, mod);
-		if (!fs.existsSync(dir)) continue;
-		const db = new ClassicLevel(dir, { valueEncoding: "json" });
-		const docs = [];
-		for await (const [, v] of db.iterator()) docs.push(v);
-		await db.close();
-		for (const v of docs) {
-			if (!Array.isArray(v?.items)) continue;
-			const folders = new Map((v.folders ?? []).map((f) => [f._id, f]));
-			const chain = (fid) => {
-				const names = [];
-				for (let f = folders.get(fid); f; f = folders.get(f.folder)) names.push((f.name ?? "").toLowerCase());
-				return names;
-			};
-			for (const it of v.items) {
-				if (it.type !== "themekit") continue;
-				kits.set(normalizeKitName(it.name), { name: it.name, folderDerivable: chain(it.folder).some((n) => LEVELS.has(n)) });
+		for (const dir of packDirs(root, mod)) {
+			const db = new ClassicLevel(dir, { valueEncoding: "json" });
+			const entries = [];
+			for await (const [k, v] of db.iterator()) entries.push([k, v]);
+			await db.close();
+			const packFolders = new Map(entries.filter(([k]) => k.startsWith("!folders!")).map(([, f]) => [f._id, f]));
+			for (const [key, v] of entries) {
+				if (key.startsWith("!items!")) record(v, chainIn(packFolders));
+				if (Array.isArray(v?.items) && Array.isArray(v?.folders)) {
+					const advFolders = new Map(v.folders.map((f) => [f._id, f]));
+					for (const it of v.items) record(it, chainIn(advFolders));
+				}
 			}
 		}
 	}

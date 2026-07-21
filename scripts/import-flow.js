@@ -9,6 +9,7 @@ const DOC_CLASS = {
 	JournalEntry: () => JournalEntry,
 	Scene: () => Scene,
 	Adventure: () => Adventure,
+	RollTable: () => RollTable,
 };
 
 async function withUnlockedPack(packName, fn) {

@@ -258,6 +258,144 @@ describe("assembleHandoff — Fellowship themekits injection", () => {
 	});
 });
 
+describe("assembleHandoff — core book v1.2 multi-pack additions", () => {
+	it("routes RollTables to the tables pack with rewritten result UUIDs and folders", () => {
+		const bundle = {
+			hasAdventure: false,
+			actors: [], items: [], journal: [], scenes: [],
+			folders: [{ _id: "FT00000000000001", type: "RollTable", name: "Oracles", folder: null, color: null, sorting: "a", sort: 0, description: "", flags: {} }],
+			tables: [{
+				_id: "TBL0000000000001", name: "Omens", img: "icons/svg/d20-grey.svg", description: "",
+				formula: "1d6", replacement: true, displayRoll: true, folder: "FT00000000000001", sort: 0,
+				results: [{
+					_id: "RES0000000000001", type: "document", name: "Next", weight: 1, range: [1, 6], drawn: false,
+					description: "", documentUuid: "Compendium.legend-in-the-mist-core-book.litm-core-rolltables.RollTable.TBL0000000000002",
+				}],
+			}, {
+				_id: "TBL0000000000002", name: "Next", img: "icons/svg/d20-grey.svg", description: "",
+				formula: "1d6", replacement: true, displayRoll: true, folder: null, sort: 1, results: [],
+			}],
+		};
+		const payload = assembleHandoff("legend-in-the-mist-core-book", bundle);
+		const group = payload.packs["litm-core-book-tables"];
+		expect(group.docClass).toBe("RollTable");
+		expect(group.docs[0].results[0].documentUuid)
+			.toBe("Compendium.litmv2-converter.litm-core-book-tables.RollTable.TBL0000000000002");
+		expect(group.folders.map((f) => f._id)).toEqual(["FT00000000000001"]);
+		expect(payloadCounts(payload)).toEqual({ RollTable: 2 });
+	});
+
+	it("routes rotes to the rotes pack as actions", () => {
+		const bundle = {
+			hasAdventure: false, actors: [], journal: [], scenes: [], tables: [], folders: [],
+			items: [{
+				_id: "ROTE000000000001", name: "Test rote", type: "rote", img: "icons/svg/daze.svg", folder: null,
+				system: { description: "", practitioners: "", actionType: "detailed", powertags: [], weaknesstags: [], success: "<p><strong>CREATE</strong> a thing.</p>", consequences: "", selected: false },
+			}],
+		};
+		const payload = assembleHandoff("legend-in-the-mist-core-book", bundle);
+		const doc = payload.packs["litm-core-book-rotes"].docs[0];
+		expect(doc.type).toBe("action");
+		expect(doc.system.category).toBe("rote");
+	});
+
+	it("rewrites compendium-form journal links from the source module (core book ≥1.2 link shape)", () => {
+		const bundle = {
+			hasAdventure: false, actors: [], scenes: [], tables: [], folders: [],
+			items: [{ _id: "VIG0000000000001", name: "V", type: "shortchallenge", system: { shortDescription: "", list: [] } }],
+			journal: [journal(
+				'@UUID[Compendium.legend-in-the-mist-core-book.litm-core-vignettes.Item.VIG0000000000001]{V} and @UUID[Compendium.unrelated-module.p.Item.VIG0000000000001]{X}',
+			)],
+		};
+		const payload = assembleHandoff("legend-in-the-mist-core-book", bundle);
+		const content = payload.packs["litm-core-book-journals"].docs[0].pages[0].text.content;
+		expect(content).toContain("@UUID[Compendium.litmv2-converter.litm-core-book-items.Item.VIG0000000000001]{V}");
+		expect(content).toContain("@UUID[Compendium.unrelated-module.p.Item.VIG0000000000001]{X}");
+	});
+
+	it("throws when a route expects an Adventure but the source no longer ships one", () => {
+		const bundle = { hasAdventure: false, actors: [], items: [], journal: [], scenes: [], tables: [], folders: [] };
+		expect(() => assembleHandoff("legend-in-the-mist-hearts-of-ravendale", bundle))
+			.toThrow(/no longer ships an Adventure/);
+	});
+
+	it("fails loud on in-scope compendium links whose target was not converted (e.g. a link into a skipped pack)", () => {
+		const bundle = {
+			hasAdventure: false, actors: [], items: [], scenes: [], tables: [], folders: [],
+			journal: [journal(
+				"See @UUID[Compendium.legend-in-the-mist-core-book.litm-core-quintessences.Item.QT00000000000001]{Beyond Luck}.",
+			)],
+		};
+		expect(() => assembleHandoff("legend-in-the-mist-core-book", bundle))
+			.toThrow(/could not be rewritten/);
+	});
+
+	it("fails loud when an official Fellowship themebook exists but the Fellowship Creation page is missing", () => {
+		const officialFellowship = {
+			_id: "FellowshipThmbk0", name: "Fellowship", type: "themebook", folder: null,
+			system: { options: {}, type: "litm-variable", description: "<p>The group.</p>", specialImprovements: [] },
+		};
+		const bundle = {
+			hasAdventure: false, actors: [], scenes: [], tables: [], folders: [],
+			items: [officialFellowship],
+			journal: [{ ...themebooksJournal, pages: [themebooksJournal.pages[0]] }],
+		};
+		expect(() => assembleHandoff("legend-in-the-mist-core-book", bundle))
+			.toThrow(/no Fellowship Creation page/);
+	});
+
+	it("derives tier and themebook from the v1.2 prefix-less folder chain for a kit with empty themekit_type", () => {
+		// Real-corpus shape: "Formidable  Weaponmaster" sits in Adventure/Prodigious
+		// Ability with system.themekit_type "" — kitHints must carry it.
+		const kit = {
+			_id: "kitBlankType0001", name: "Zz Totally Unindexed Kit", type: "themekit", folder: "fB2fB2fB2fB2fB2f",
+			system: { powertags: [{ name: "steady hands" }], weaknesstags: [], specialImprovements: [], themekit_type: "", quest: "" },
+		};
+		const bundle = {
+			hasAdventure: false, actors: [], journal: [], scenes: [], tables: [],
+			items: [kit],
+			folders: [
+				{ _id: "fB1fB1fB1fB1fB1f", type: "Item", name: "Adventure", folder: null, color: null, sorting: "a", sort: 0, description: "", flags: {} },
+				{ _id: "fB2fB2fB2fB2fB2f", type: "Item", name: "Prodigious Ability", folder: "fB1fB1fB1fB1fB1f", color: null, sorting: "a", sort: 0, description: "", flags: {} },
+			],
+		};
+		const out = assembleHandoff("legend-in-the-mist-core-book", bundle);
+		const theme = out.packs["litm-core-book-themekits"].docs[0];
+		expect(theme.system.level).toBe("adventure");
+		expect(theme.system.themebook).toBe("Prodigious Ability");
+	});
+
+	it("merges page-parsed Fellowship fields into an official Fellowship themebook doc instead of duplicating it", () => {
+		// Core Book ≥1.2 ships the Fellowship as a real doc — but with five
+		// EMPTY-named specialImprovements (source data defect) and, like all
+		// source themebooks, no envisioningTags/questIdeas.
+		const officialFellowship = {
+			_id: "FellowshipThmbk0", name: "Fellowship", type: "themebook", folder: "if1if1if1if1if1i",
+			system: {
+				options: {}, type: "litm-variable", description: "<p>The group.</p>",
+				specialImprovements: [{ name: "", description: "orphaned", active: false }],
+			},
+		};
+		const bundle = {
+			hasAdventure: false, actors: [], scenes: [], tables: [], folders,
+			items: [officialFellowship],
+			journal: [themebooksJournal],
+		};
+		const out = assembleHandoff("legend-in-the-mist-core-book", bundle);
+		const docs = out.packs["litm-core-book-themebooks"].docs;
+		expect(docs.map((d) => d.name)).toEqual(["Fellowship"]);
+		const doc = docs[0];
+		expect(doc._id).toBe("FellowshipThmbk0");
+		expect(doc.system.isFellowship).toBe(true);
+		expect(doc.system.theme_level).toBe("variable");
+		expect(doc.system.envisioningTags).toEqual(["Traveling Companions", "Found Family or Local Community"]);
+		expect(doc.system.questIdeas).toEqual(["Your shared purpose."]);
+		expect(doc.system.specialImprovements).toEqual([
+			{ name: "Campfire Stories", description: "Remove one tier of a harmful status." },
+		]);
+	});
+});
+
 describe("assembleHandoff — fail-loud guards (source structure changed)", () => {
     it("throws when the Themebooks page is present but no themebook types parse", () => {
         const degenerateJournal = {

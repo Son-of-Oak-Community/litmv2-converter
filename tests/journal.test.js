@@ -44,6 +44,12 @@ describe("convertJournal", () => {
 		const out = convertJournal(source, { convertText: (s) => s });
 		expect(out.flags).toEqual({ core: { sheetClass: "litmv2.LitmJournalSheet" } });
 	});
+	it("carries journal categories so page category refs don't dangle (core book ≥1.2)", () => {
+		const withCategories = { ...source, categories: [{ _id: "cat1cat1cat1cat1", name: "Chapters" }] };
+		expect(convertJournal(withCategories, { convertText: (s) => s }).categories)
+			.toEqual([{ _id: "cat1cat1cat1cat1", name: "Chapters" }]);
+		expect(convertJournal(source, { convertText: (s) => s }).categories).toEqual([]);
+	});
 	it("passes non-text pages through untouched apart from ownership", () => {
 		const img = { ...source.pages[0], _id: "pg2pg2pg2pg2pg2p", type: "image", text: { format: 1 }, src: "modules/x/img.webp" };
 		const out = convertJournal({ ...source, pages: [img] });

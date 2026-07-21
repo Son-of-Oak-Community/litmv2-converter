@@ -26,6 +26,9 @@ export function convertJournal(source, ctx = {}) {
 		// than flipping it on as the world default (which would restyle every
 		// journal in the user's world).
 		flags: { core: { sheetClass: JOURNAL_SHEET_CLASS } },
+		// Core Book ≥1.2 journals define page categories; pages keep their
+		// `category` ref via the spread below, so the definitions must ride along.
+		categories: source.categories ?? [],
 		pages: (source.pages ?? []).map((p) => {
 			const page = { ...p, ownership: publicOwnership(p.ownership, -1) };
 			if (p.type === "text") page.text = { ...p.text, content: t(p.text?.content ?? "") };

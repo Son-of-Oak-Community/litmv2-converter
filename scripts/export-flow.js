@@ -1,8 +1,9 @@
 // scripts/export-flow.js
 import { assembleHandoff, payloadCounts } from "./assemble-handoff.js";
 import { normalizeKitName } from "./core/data/themekit-index.js";
+import { readSourceBundle } from "./core/source-reader.js";
 import { deterministicId } from "./core/util.js";
-import { ensureHandoffDir, readHandoffJSON, writeHandoffJSON, writeHandoffThumb } from "./handoff-io.js";
+import { copyPackBanners, ensureHandoffDir, readHandoffJSON, writeHandoffJSON, writeHandoffThumb } from "./handoff-io.js";
 import { MODULE_ID, ROUTES, SOURCE_MODULES } from "./registry.js";
 
 const FELLOWSHIP_KIT_NAMES = [
@@ -17,14 +18,27 @@ const FELLOWSHIP_KIT_NAMES = [
  * trope naming a Core Book kit).
  * @returns {Promise<Map<string, string>>}
  */
-async function buildKitUuidMap() {
+// Compendium packs are immutable within a session (updating a source module
+// forces a reload), so the kit map is built once and shared by every
+// exportSource call in a run — Core Book ≥1.2 makes a bundle read ten
+// getDocuments calls, and rebuilding per source tripled that for nothing.
+let kitUuidMapPromise = null;
+
+function buildKitUuidMap() {
+	kitUuidMapPromise ??= buildKitUuidMapUncached().catch((e) => {
+		kitUuidMapPromise = null;
+		throw e;
+	});
+	return kitUuidMapPromise;
+}
+
+async function buildKitUuidMapUncached() {
 	const map = new Map();
 	for (const mod of SOURCE_MODULES) {
 		const themePack = ROUTES[mod.id]?.itemPacks?.theme;
-		const src = game.packs.get(mod.packId);
-		if (!themePack || !src) continue;
-		const [adventure] = await src.getDocuments();
-		for (const it of adventure.toObject().items ?? []) {
+		if (!themePack || !game.modules.get(mod.id)?.active) continue;
+		const bundle = await readSourceBundle(mod.id, mod);
+		for (const it of bundle.items) {
 			if (it.type !== "themekit") continue;
 			map.set(normalizeKitName(it.name), `Compendium.${MODULE_ID}.${themePack}.Item.${it._id}`);
 		}
@@ -69,13 +83,14 @@ async function bakeSceneThumbnails(scenes) {
 export async function exportSource(sourceModuleId) {
 	const mod = SOURCE_MODULES.find(m => m.id === sourceModuleId);
 	if (!mod) throw new Error(`Unknown source module: ${sourceModuleId}`);
-	const pack = game.packs.get(mod.packId);
-	if (!pack) throw new Error(`Source pack not found (are you in a mist-engine world with the module enabled?): ${mod.packId}`);
+	if (!game.modules.get(mod.id)?.active)
+		throw new Error(`Source module is not enabled in this world (are you in a mist-engine world?): ${mod.id}`);
 
 	await ensureHandoffDir();
-	const [adventure] = await pack.getDocuments();
+	await copyPackBanners();
+	const bundle = await readSourceBundle(mod.id, mod);
 	const kitUuidByName = await buildKitUuidMap();
-	const payload = assembleHandoff(mod.id, adventure.toObject(), { kitUuidByName });
+	const payload = assembleHandoff(mod.id, bundle, { kitUuidByName });
 	if (payload.adventure) await bakeSceneThumbnails(payload.adventure.scenes);
 	const counts = payloadCounts(payload);
 	const file = `${mod.id}.json`;

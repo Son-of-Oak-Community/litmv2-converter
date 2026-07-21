@@ -9,3 +9,4 @@ packs/
 .superpowers/
 .playwright-cli/
 docs/
+/*.png
